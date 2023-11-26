@@ -1,11 +1,50 @@
 import tkinter as tk
-from tkinter import Spinbox, Entry, Label, Button
+from tkinter import Spinbox, Entry, Label, Button, ttk
 import numpy as np
 
 class Game:
     def __init__(self, table_size):
         self.table_size = table_size
         
+        self.game_window = tk.Tk()
+        self.table = GameTable(self.game_window, table_size)
+        self.add_input_fields()
+
+        self.game_window.mainloop()
+        
+        
+    def add_input_fields(self):
+        # Dodaj input polja i dugme sa desne strane table
+        self.from_label = Label(self.game_window, text="FROM:")
+        self.from_label.grid(row=1, column=self.table_size + 2, sticky=tk.W)
+        
+        self.from_entry = Entry(self.game_window)
+        self.from_entry.grid(row=1, column=self.table_size + 3, sticky=tk.W)
+        
+        self.index_label = Label(self.game_window, text="INDEX IN STACK:")
+        self.index_label.grid(row=2, column=self.table_size + 2, sticky=tk.W)
+        
+        self.index_entry = Entry(self.game_window)
+        self.index_entry.grid(row=2, column=self.table_size + 3, sticky=tk.W)
+        
+        self.direction_label = Label(self.game_window, text="DIRECTION:")
+        self.direction_label.grid(row=3, column=self.table_size + 2, sticky=tk.W)
+        
+        # self.to_entry = Entry(self.game_window)
+        # self.to_entry.grid(row=3, column=self.table_size + 3, sticky=tk.W)
+        self.direction_var = tk.StringVar()
+        self.direction_combobox = ttk.Combobox(self.game_window, textvariable=self.direction_var, values=["Upper-Left", "Upper-Right", "Lower-Left", "Lower-Right"])
+        self.direction_combobox.grid(row=3, column=self.table_size + 3, sticky=tk.W) 
+        self.direction_combobox.config(state='readonly')
+        
+        self.move_button = Button(self.game_window, text="MAKE A MOVE", command=self.input_move)
+        self.move_button.grid(row=4, column=self.table_size + 2, columnspan=2, sticky=tk.W)
+        
+    def input_move(self):
+        from_value = self.from_entry.get()
+        index_value = self.index_entry.get()
+        direction_value = self.direction_combobox.get()
+        print(f"Pomeranje figure: FROM={from_value}, INDEX IN STACK={index_value}, TO={direction_value}")
 
 class GameTable:
     def __init__(self, master, table_size,field_size=50):
@@ -20,7 +59,7 @@ class GameTable:
         self.set_starting_state()
         self.draw_table()
         self.draw_all_fields()
-        self.add_input_fields()
+        # self.add_input_fields()
         
     def draw_all_fields(self):
         for i in range(self.table_size):
@@ -73,28 +112,7 @@ class GameTable:
                 self.table.create_rectangle(x1, y1, x2, y2, fill=boja)
        
     
-    def add_input_fields(self):
-        # Dodaj input polja i dugme sa desne strane table
-        self.from_label = Label(self.master, text="FROM:")
-        self.from_label.grid(row=1, column=self.table_size + 2, sticky=tk.W)
-        
-        self.from_entry = Entry(self.master)
-        self.from_entry.grid(row=1, column=self.table_size + 3, sticky=tk.W)
-        
-        self.index_label = Label(self.master, text="INDEX IN STACK:")
-        self.index_label.grid(row=2, column=self.table_size + 2, sticky=tk.W)
-        
-        self.index_entry = Entry(self.master)
-        self.index_entry.grid(row=2, column=self.table_size + 3, sticky=tk.W)
-        
-        self.to_label = Label(self.master, text="TO:")
-        self.to_label.grid(row=3, column=self.table_size + 2, sticky=tk.W)
-        
-        self.to_entry = Entry(self.master)
-        self.to_entry.grid(row=3, column=self.table_size + 3, sticky=tk.W)
-        
-        self.move_button = Button(self.master, text="MAKE A MOVE", command=self.pomeri_figuru)
-        self.move_button.grid(row=4, column=self.table_size + 2, columnspan=2, sticky=tk.W)
+   
     
     def draw_field(self, row, column):
         x = column * self.field_size + 25
@@ -107,16 +125,12 @@ class GameTable:
         if(count == 8):
             return
         if(count == 7):
-            print("unutra",count)
-            print(self.state[row, column],row,column)
             if(self.state[row, column, 0] == 1):
                 self.table.create_oval(x1 + 5, y1 + 5, x2 - 5, y2 - 5, fill="black")
             else:
                 self.table.create_oval(x1 + 5, y1 + 5, x2 - 5, y2 - 5, fill="white")
             return
 
-        print(count)
-        
         x = column * self.field_size + 5  # x koordinata - polje u drugoj koloni
         y = (row+1) * self.field_size  # y koordinata - donja ivica polja
         figure_number = 8-count  # Promenite broj pravougaonika prema potrebi
@@ -128,13 +142,9 @@ class GameTable:
                 self.table.create_rectangle(x, y, x + self.field_size-10, y - figure_height, fill="white")
             y -= figure_height + 2
 
-    def pomeri_figuru(self):
+    def move_figure(self, from_value, index_value, to_value):
         # Implementirajte logiku za pomeranje figure na osnovu unetih vrednosti
-        from_value = self.from_entry.get()
-        index_value = self.index_entry.get()
-        to_value = self.to_entry.get()
-        print(f"Pomeranje figure: FROM={from_value}, INDEX IN STACK={index_value}, TO={to_value}")
-
+        pass
 class GamePropertiesForm:
     def __init__(self, master):
         self.master = master
@@ -169,9 +179,7 @@ class GamePropertiesForm:
         
         
         # Koristi novu instancu Tk za drugi prozor
-        game_window = tk.Tk()
-        tabla = GameTable(game_window, table_size)
-        game_window.mainloop()
+       
 
 if __name__ == "__main__":
     root = tk.Tk()
