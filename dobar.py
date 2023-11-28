@@ -67,17 +67,24 @@ class GameTable:
                 self.draw_field(i, j)
                 
     def set_starting_state(self):
-        for i, row in enumerate(range(1, self.table_size - 1), start=1): 
+        self.figure_number= (self.table_size*(self.table_size-2)) /2
+        self.figure_number = self.figure_number-(self.figure_number%8)
+        print(self.figure_number)
+        crne=bele=self.figure_number/2
+        
+        for i in range(self.table_size - 2, 0, -1):
+            for j in range(self.table_size-1,-1,-1):
+                print(i,j)
+                if crne>0 and i % 2 == 1 and j % 2 == 1:
+                    self.state[i, j, 0] = 1
+                    crne -= 1
+        for i in range(1,self.table_size-1):
             for j in range(self.table_size):
-                if(i%2==1):
-                    if(j%2==1):
-                        self.state[i, j, 0] = 1
-                else:
-                    if(j%2==0):
-                        self.state[i, j, 0] = 0
-                        
-                        
-        self.state[4,4,:] = [1,1,0,0,1,-1,-1,-1]
+                if bele>0 and i % 2 == 0 and j % 2 == 0:
+                    self.state[i, j, 0] = 0
+                    bele -= 1
+                       
+        # self.state[4,4,:] = [1,1,0,0,1,-1,-1,-1]
         
         
     def draw_table(self):
@@ -163,7 +170,7 @@ class GamePropertiesForm:
         self.label = tk.Label(self.master, text="Unesite veličinu table:")
         self.label.grid(row=0, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
         
-        self.table_size_picker = Spinbox(self.master, from_=6, to=16, width=3)
+        self.table_size_picker = Spinbox(self.master, from_=6, to=16, width=3, increment=2, state="readonly")
         self.table_size_picker.grid(row=1, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
         
         self.start_game_button = tk.Button(self.master, text="Start Game", command=self.start_game)
