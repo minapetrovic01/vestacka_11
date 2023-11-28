@@ -3,8 +3,19 @@ from tkinter import Spinbox, Entry, Label, Button, ttk
 import numpy as np
 
 class Game:
-    def __init__(self, table_size):
+    def __init__(self, table_size, choosen_player):
         self.table_size = table_size
+        self.choosen_player = choosen_player
+        
+        if(choosen_player == "Player X - black"):
+            self.player_1 = Player(True, True)
+            self.player_2 = Player(False, False)
+        else:
+            self.player_2 = Player(True, False)
+            self.player_1 = Player(False, True)
+            
+        self.winner = ""
+        self.current_color=1
         
         self.game_window = tk.Tk()
         self.table = GameTable(self.game_window, table_size)
@@ -12,6 +23,26 @@ class Game:
 
         self.game_window.mainloop()
         
+    def max_stacks(self):
+        self.figure_number= (self.table_size*(self.table_size-2)) /2
+        self.figure_number = self.figure_number-(self.figure_number%8)
+        return self.figure_number/8
+            
+    def is_finished(self):
+        max_stacks = self.max_stacks()
+        score_human = self.player_1.stack_score 
+        score_computer = self.player_2.stack_score
+        
+        if score_human > max_stacks/2:
+            self.winner = "You are the winner!"
+            return True
+        if score_computer > max_stacks/2:
+            self.winner = "Computer is the winner!"
+            return True
+        if max_stacks == score_human + score_computer:
+            self.winner = "No one winns! It is draw!"
+            return True
+        return False
         
     def add_input_fields(self):
         # Dodaj input polja i dugme sa desne strane table
@@ -44,8 +75,26 @@ class Game:
         from_value = self.from_entry.get()
         index_value = self.index_entry.get()
         direction_value = self.direction_combobox.get()
-        print(f"Pomeranje figure: FROM={from_value}, INDEX IN STACK={index_value}, TO={direction_value}")
-
+        
+        if(self.check_inputs(from_value, index_value, direction_value)):
+            self.table.move_figure(from_value, index_value, direction_value)
+        else:
+            warning = tk.Tk()
+            InfoForm(self.game_window,warning, "Wrong input!")
+            warning.mainloop()
+            
+            
+        
+    def check_inputs(self, from_value, index_value, direction_value):
+        return self.check_from(from_value) and self.check_index(index_value) and self.check_direction(direction_value)
+    def check_from(self, from_value):
+        return True
+    def check_index(self, index_value):
+        return True
+    def check_direction(self, direction_value):
+        return True
+    
+    
 class GameTable:
     def __init__(self, master, table_size,field_size=50):
         self.master = master
@@ -149,7 +198,7 @@ class GameTable:
                 self.table.create_rectangle(x, y, x + self.field_size-10, y - figure_height, fill="white")
             y -= figure_height + 2
 
-    def move_figure(self, from_value, index_value, to_value):
+    def move_figure(self, from_value, index_value, direction_value):
         # Implementirajte logiku za pomeranje figure na osnovu unetih vrednosti
         pass
 class GamePropertiesForm:
@@ -167,26 +216,66 @@ class GamePropertiesForm:
         
         self.master.geometry(f"{window_width}x{window_height}+{screen_width//2-window_width//2}+{screen_height//2-window_height//2}")
         
-        self.label = tk.Label(self.master, text="Unesite veličinu table:")
+        self.label = tk.Label(self.master, text="Enter table size:")
         self.label.grid(row=0, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
         
         self.table_size_picker = Spinbox(self.master, from_=6, to=16, width=3, increment=2, state="readonly")
         self.table_size_picker.grid(row=1, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
         
+        self.labelPlayer = tk.Label(self.master, text="Choose your player")
+        self.labelPlayer.grid(row=3, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
+        
+        self.direction_var = tk.StringVar()
+        self.choosen_player = ttk.Combobox(self.master, textvariable=self.direction_var, values=["Player X - black", "Player O - white"])
+        self.choosen_player.grid(row=4, column=1, sticky=tk.W) 
+        self.choosen_player.config(state='readonly')
+        
         self.start_game_button = tk.Button(self.master, text="Start Game", command=self.start_game)
-        self.start_game_button.grid(row=2, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
+        self.start_game_button.grid(row=5, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
 
     def start_game(self):
         table_size = int(self.table_size_picker.get())
-        
+        choosen_player = self.choosen_player.get()
         # Zatvori trenutni prozor
         self.master.destroy()
         
-        game=Game(table_size)
+        game=Game(table_size,choosen_player)
         
         
         # Koristi novu instancu Tk za drugi prozor
-       
+
+class InfoForm:
+    def __init__(self, parent,master, message):
+        self.master = master
+        self.master.title("Info")
+        self.parent = parent
+        # Dobavi širinu i visinu ekrana
+        screen_width = self.master.winfo_screenwidth()
+        screen_height = self.master.winfo_screenheight()
+        
+        # Postavi veličinu prozora na 1/5 ekrana
+        window_width = screen_width // 5
+        window_height = screen_height // 5
+        
+        self.master.geometry(f"{window_width}x{window_height}+{screen_width//2-window_width//2}+{screen_height//2-window_height//2}")
+        
+        self.label = tk.Label(self.master, text=message)
+        self.label.grid(row=0, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
+        
+        self.start_game_button = tk.Button(self.master, text="OK", command=self.close_window)
+        self.start_game_button.grid(row=1, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
+        
+    def close_window(self):
+        self.master.destroy()   
+    
+    
+class Player:
+    def __init__(self, is_x, is_human):
+        self.is_x = is_x # X je crni igrac i igra prvi
+        self.is_human = is_human
+        self.stack_score = 0
+    def increase_stack_score(self):
+        self.stack_score += 1
 
 if __name__ == "__main__":
     root = tk.Tk()
