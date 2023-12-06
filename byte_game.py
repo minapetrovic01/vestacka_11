@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import Spinbox, Entry, Label, Button, ttk
 import numpy as np
+from collections import deque
+
 
 class Game:
     def __init__(self, table_size, choosen_player):
@@ -93,12 +95,21 @@ class Game:
         direction_value = self.direction_combobox.get()
         
         if(self.check_inputs(from_value, index_value, direction_value)):
-            self.table.move_figure(from_value, index_value, direction_value)
+            if self.move_figure(from_value, index_value, direction_value):#sad je dobro
+                self.change_current_player()
+            else:
+                warning = tk.Tk()
+                InfoForm(self.game_window,warning, "Unable to make a move! Try again.")
+                warning.mainloop()
         else:
             warning = tk.Tk()
             InfoForm(self.game_window,warning, "Wrong input!")
             warning.mainloop()
-        
+            
+    def move_figure(self, from_value, index_value, direction_value):
+        return self.table.move_figure(from_value, index_value, direction_value)
+
+    
     def check_inputs(self, from_value, index_value, direction_value):
         if len(from_value) != 2 and len(from_value) != 3:
             return False
@@ -236,10 +247,141 @@ class GameTable:
             else:
                 self.table.create_rectangle(x, y, x + self.field_size-10, y - figure_height, fill="white")
             y -= figure_height + 2
+            
+    def check_empty_neighbors(self, index_i, index_j):
+        empty_fields1= empty_fields2 =empty_fields3=empty_fields4= True
+
+        def is_occupied(i, j):
+            return self.state[i, j, 0] != -1
+
+        if self.is_valid_position(index_i + 1, index_j + 1) :
+            if is_occupied(index_i + 1, index_j + 1):
+                empty_fields1 = False
+       
+        if self.is_valid_position(index_i + 1, index_j - 1):
+            if is_occupied(index_i + 1, index_j - 1):
+                empty_fields2 = False
+            
+        if self.is_valid_position(index_i - 1, index_j + 1):
+            if is_occupied(index_i - 1, index_j + 1):
+                empty_fields3 = False
+        
+        if self.is_valid_position(index_i - 1, index_j - 1):
+            if is_occupied(index_i - 1, index_j - 1):
+                empty_fields4 = False
+            
+        empty_fields = empty_fields1 and empty_fields2 and empty_fields3 and empty_fields4
+
+        return empty_fields
+    
+
+    def is_valid_position(self, i, j):
+        return (0 <= i) and (i < self.table_size) and (0 <= j) and (j< self.table_size)
+
+    def find_nearest_stacks(self, start_position):
+        visited = set()
+        queue = deque([(start_position, 0)])
+        min_distance = float('inf')
+        nearest_positions = []
+
+        while queue:
+            (x, y), distance = queue.popleft()
+
+            if distance > min_distance:
+                break  # Stop searching if we exceed the minimum distance
+
+            if self.state[x,y,0] != -1 and (x, y) != start_position:
+                min_distance = distance
+                nearest_positions.append((x, y))
+
+            for i, j in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]:
+                new_x, new_y = x + i, y + j
+
+                if self.is_valid_position(new_x, new_y) and (new_x, new_y) not in visited:
+                    queue.append(((new_x, new_y), distance + 1))
+                    visited.add((new_x, new_y))
+
+        return nearest_positions
+    
+    def is_on_path_to_closest_stack(self, current, next_move):
+        nearest_stacks=self.find_nearest_stacks(current)
+        on_path=False
+        for stack in nearest_stacks:
+            a,b=stack
+            i,j=current
+            x,y=next_move
+            if(abs(a-i)<abs(a-x)):
+                if(b>j and y==j+1):
+                    on_path=True
+                    break
+                if(j>b and y==j-1):
+                    on_path=True
+                    break
+            if(abs(b-j)<abs(b-y)):
+                if(a>i and x==i+1):
+                    on_path=True
+                    break
+                if(a<i and x==i-1):
+                    on_path=True
+                    break
+        return on_path
+
+    def is_stack_move_valid(self, source, destination):
+        
+        count_in_dest = np.count_nonzero(self.state[destination[0], destination[1], :] == -1)
+        count_in_source = np.count_nonzero(self.state[source[0], source[1], :] == -1)
+        count_exchange=8-count_in_source-source[2]
+
+        next_empty_in_stack = 8 - count_in_dest
+
+        if source[2]<next_empty_in_stack:
+            return False
+        if count_exchange + next_empty_in_stack > 8:
+            return False
+        
+        return True
+    
+    def calculate_indices(self, from_value, index_value, direction_value):
+        dest_column=src_column=ord(from_value[-1])-65
+        dest_row=src_row=int(from_value[:-1])-1
+        if direction_value == "Upper-Left":
+            dest_row-=1
+            dest_column-=1
+        elif direction_value == "Upper-Right":
+            dest_row-=1
+            dest_column+=1
+        elif direction_value == "Lower-Left":
+            dest_row+=1
+            dest_column-=1
+        elif direction_value == "Lower-Right":
+            dest_row+=1
+            dest_column+=1
+        
+        dst_index = np.count_nonzero(self.state[dest_row, dest_column, :] == -1)
+        dst_index = 8 - dst_index
+            
+        return src_row, src_column,int(index_value), dest_row, dest_column, dst_index
+        
+    def execute_move(self, source, destination):
+        self.state[destination[0], destination[1], destination[2]:] = self.state[source[0], source[1], source[2]:] 
+        self.state[source[0], source[1], source[2]:] = -1
 
     def move_figure(self, from_value, index_value, direction_value):
-        # TODO: Implementirati logiku za pomeranje figure na osnovu unetih vrednosti
-        pass
+        src_i,src_j,index_value, dest_i, dest_j, dst_index = self.calculate_indices(from_value, index_value, direction_value)
+        
+        print(src_i,src_j,index_value, dest_i, dest_j, dst_index)
+        empty_neighbors = self.check_empty_neighbors(src_i, src_j)
+        
+        print(empty_neighbors)
+        print(self.is_stack_move_valid((src_i,src_j,index_value), (dest_i, dest_j, dst_index)))
+        
+        if not empty_neighbors and self.is_stack_move_valid((src_i,src_j,index_value), (dest_i, dest_j, dst_index)):
+            self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index))
+            self.draw_table()
+            self.draw_all_fields()
+
+            return True
+            
 class GamePropertiesForm:
     def __init__(self, master):
         self.master = master
