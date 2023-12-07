@@ -5,15 +5,15 @@ from collections import deque
 
 
 class Game:
-    def __init__(self, table_size, choosen_player):
+    def __init__(self, table_size, choosen_player,computer_player):
         self.table_size = table_size
         self.choosen_player = choosen_player
         
         if(choosen_player == "Player X - black"):
             self.player_1 = Player(True, True)
-            self.player_2 = Player(False, False)
+            self.player_2 = Player(False, not computer_player)
         else:
-            self.player_2 = Player(True, False)
+            self.player_2 = Player(True, not computer_player)
             self.player_1 = Player(False, True)
             
         self.winner = ""
@@ -97,6 +97,14 @@ class Game:
         if(self.check_inputs(from_value, index_value, direction_value)):
             if self.move_figure(from_value, index_value, direction_value):#sad je dobro
                 self.change_current_player()
+                if len(self.find_all_possible_moves(self.current_color))==0:
+                    label="X"
+                    if self.current_color==0:
+                        label="O"
+                    result = tk.Tk()
+                    InfoForm(self.game_window,result, "No possible moves for player ",label ,".")
+                    result.mainloop()
+                    self.change_current_player()
             else:
                 warning = tk.Tk()
                 InfoForm(self.game_window,warning, "Unable to make a move! Try again.")
@@ -107,8 +115,41 @@ class Game:
             warning.mainloop()
             
     def move_figure(self, from_value, index_value, direction_value):
-        return self.table.move_figure(from_value, index_value, direction_value)
-
+        moved,i,j= self.table.move_figure(from_value, index_value, direction_value)
+        
+        if moved:
+            if self.table.is_stack_full(i,j):
+                if self.current_color==1:
+                    self.player_1.increase_stack_score()
+                else:
+                    self.player_2.increase_stack_score()
+                if self.is_finished():
+                    result = tk.Tk()
+                    InfoForm(self.game_window,result, self.winner)
+                    result.mainloop()
+            self.current_score_display()
+                    
+        return moved
+    
+    def find_all_possible_moves(self,current_color):
+        possible_moves=[]
+        for i in range(self.table_size):
+            for j in range(self.table_size):
+                for k in range(8):
+                    if self.table.state[i,j,k]==current_color:
+                        possible_moves.extend(self.table.find_all_possible_moves_from_position(i,j,k))
+        return possible_moves
+    
+    def generate_all_possible_states(self, possible_moves, starting_state):
+        list_of_states=[]
+        
+        for move in possible_moves:
+            state=np.copy(starting_state)
+            src_i,src_j,index_value, dest_i, dest_j, dst_index = self.table.calculate_indices(move[0]+str(move[1]+1), move[2], move[3])
+            self.table.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),state)
+            list_of_states.append(state)
+            
+        return list_of_states
     
     def check_inputs(self, from_value, index_value, direction_value):
         if len(from_value) != 2 and len(from_value) != 3:
@@ -171,8 +212,7 @@ class GameTable:
         self.state = np.full((self.table_size, self.table_size, 8), -1, dtype=np.int8)
         
         self.set_starting_state()
-        self.draw_table()
-        self.draw_all_fields()
+        self.draw_state()
         
     def draw_all_fields(self):
         for i in range(self.table_size):
@@ -195,9 +235,6 @@ class GameTable:
                     self.state[i, j, 0] = 0
                     bele -= 1
                        
-        #self.state[4,4,:] = [1,1,0,0,1,-1,-1,-1]
-        
-        
     def draw_table(self):
         # Dodaje labele sa indeksima polja sa leve i gornje strane
         for i in range(self.table_size):
@@ -334,7 +371,7 @@ class GameTable:
 
         next_empty_in_stack = 8 - count_in_dest
 
-        if source[2]<next_empty_in_stack:
+        if source[2]>next_empty_in_stack:
             return False
         if count_exchange + next_empty_in_stack > 8:
             return False
@@ -361,26 +398,66 @@ class GameTable:
         dst_index = 8 - dst_index
             
         return src_row, src_column,int(index_value), dest_row, dest_column, dst_index
+    
+    def is_stack_full(self, row, column):
+        return np.count_nonzero(self.state[row, column, :] == -1) == 0
         
-    def execute_move(self, source, destination):
-        self.state[destination[0], destination[1], destination[2]:] = self.state[source[0], source[1], source[2]:] 
-        self.state[source[0], source[1], source[2]:] = -1
+    def execute_move(self, source, destination,table):
+        count = 8-np.count_nonzero(table[source[0], source[1], :] == -1) - source[2]
+        table[destination[0], destination[1], destination[2]:destination[2]+count] = table[source[0], source[1], source[2]:source[2]+count] 
+        table[source[0], source[1], source[2]:] = -1
 
     def move_figure(self, from_value, index_value, direction_value):
         src_i,src_j,index_value, dest_i, dest_j, dst_index = self.calculate_indices(from_value, index_value, direction_value)
         
-        print(src_i,src_j,index_value, dest_i, dest_j, dst_index)
         empty_neighbors = self.check_empty_neighbors(src_i, src_j)
+        empty_destination = self.is_destination_empty((dest_i, dest_j))
+        if not empty_destination and not empty_neighbors and self.is_stack_move_valid((src_i,src_j,index_value), (dest_i, dest_j, dst_index)):
+            self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),self.state)
+            self.draw_state()
+            return True, dest_i, dest_j
         
-        print(empty_neighbors)
-        print(self.is_stack_move_valid((src_i,src_j,index_value), (dest_i, dest_j, dst_index)))
+        if empty_neighbors and index_value==0:#mora ceo stek da se prebaci kad se pomera na prazno polje
+            if self.is_on_path_to_closest_stack((src_i,src_j), (dest_i, dest_j)):
+                self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),self.state)
+                self.draw_state()
+                return True, dest_i, dest_j
+        return False, -1, -1
+    
+    def is_destination_empty(self, destination):
+        return np.count_nonzero(self.state[destination[0], destination[1], :] == -1) == 8 
+      
+    def draw_state(self):
+        self.draw_table()
+        self.draw_all_fields()
         
-        if not empty_neighbors and self.is_stack_move_valid((src_i,src_j,index_value), (dest_i, dest_j, dst_index)):
-            self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index))
-            self.draw_table()
-            self.draw_all_fields()
-
-            return True
+    def find_all_possible_moves_from_position(self, i, j, k):
+        moves=[]
+        if self.check_empty_neighbors(i, j):
+            if k==0:
+                if self.is_valid_position(i-1, j-1):
+                    if self.is_on_path_to_closest_stack((i,j), (i-1,j-1)):
+                        moves.append((i,j,k,"Upper-Left"))
+                if self.is_valid_position(i-1, j+1):
+                    if self.is_on_path_to_closest_stack((i,j), (i-1,j+1)):
+                        moves.append((i,j,k,"Upper-Right"))
+                if self.is_valid_position(i+1, j-1):
+                    if self.is_on_path_to_closest_stack((i,j), (i+1,j-1)):
+                        moves.append((i,j,k,"Lower-Left"))
+                if self.is_valid_position(i+1, j+1):
+                    if self.is_on_path_to_closest_stack((i,j), (i+1,j+1)):
+                        moves.append((i,j,k,"Lower-Right"))
+        else:
+            if self.is_valid_position(i-1, j-1) and self.is_stack_move_valid((i,j,k), (i-1,j-1,0)) and not self.is_destination_empty((i-1,j-1)):
+                moves.append((i,j,k,"Upper-Left"))
+            if self.is_valid_position(i-1, j+1) and self.is_stack_move_valid((i,j,k), (i-1,j+1,0)) and not self.is_destination_empty((i-1,j+1)):
+                moves.append((i,j,k,"Upper-Right"))
+            if self.is_valid_position(i+1, j-1) and self.is_stack_move_valid((i,j,k), (i+1,j-1,0)) and not self.is_destination_empty((i+1,j-1)):
+                moves.append((i,j,k,"Lower-Left"))
+            if self.is_valid_position(i+1, j+1) and self.is_stack_move_valid((i,j,k), (i+1,j+1,0)) and not self.is_destination_empty((i+1,j+1)):
+                moves.append((i,j,k,"Lower-Right"))
+                
+        return moves
             
 class GamePropertiesForm:
     def __init__(self, master):
@@ -396,7 +473,7 @@ class GamePropertiesForm:
         for i in range(6):
             self.master.grid_columnconfigure(i, weight=1)
 
-        for i in range(8):
+        for i in range(9):
             self.master.grid_rowconfigure(i, weight=1)
 
         self.master.geometry(f"{window_width}x{window_height}+{screen_width//2-window_width//2}+{screen_height//2-window_height//2}")
@@ -407,7 +484,7 @@ class GamePropertiesForm:
         self.table_size_picker = Spinbox(self.master, from_=6, to=16, width=3, increment=2, state="readonly")
         self.table_size_picker.grid(row=1, column=2, sticky=tk.N+tk.S+tk.E+tk.W)
         
-        self.labelPlayer = tk.Label(self.master, text="Choose your player")
+        self.labelPlayer = tk.Label(self.master, text="Choose first player")
         self.labelPlayer.grid(row=3, column=2, sticky=tk.N+tk.S+tk.E+tk.W)
         
         self.direction_var = tk.StringVar()
@@ -415,16 +492,22 @@ class GamePropertiesForm:
         self.choosen_player.grid(row=4, column=2, sticky=tk.N+tk.S+tk.E+tk.W) 
         self.choosen_player.config(state='readonly')
         
+        self.checkbox_var = tk.BooleanVar()
+        self.checkbox = tk.Checkbutton(root, text="play against computer", variable=self.checkbox_var)
+        self.checkbox_var.set(False)
+        self.checkbox.grid(row=5, column=2, sticky=tk.N+tk.S+tk.E+tk.W)
+
         self.start_game_button = tk.Button(self.master, text="Start Game", command=self.start_game)
-        self.start_game_button.grid(row=6, column=2, sticky=tk.N+tk.S+tk.E+tk.W)
+        self.start_game_button.grid(row=7, column=2, sticky=tk.N+tk.S+tk.E+tk.W)
         
 
     def start_game(self):
         table_size = int(self.table_size_picker.get())
         choosen_player = self.choosen_player.get()
+        computer_player = self.checkbox_var.get()
         self.master.destroy()
         
-        game=Game(table_size,choosen_player)
+        game=Game(table_size,choosen_player,computer_player)
 
 class InfoForm:
     def __init__(self, parent,master, message):
