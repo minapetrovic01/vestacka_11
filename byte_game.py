@@ -41,14 +41,14 @@ class Game:
             
     def is_finished(self):
         max_stacks = self.max_stacks()
-        score_human = self.player_1.stack_score 
-        score_computer = self.player_2.stack_score
+        score_computer = self.player_1.stack_score 
+        score_human= self.player_2.stack_score
         
         if score_human > max_stacks/2:
-            self.winner = "You are the winner!"
+            self.winner = "You are the winner (1st player)!"
             return True
         if score_computer > max_stacks/2:
-            self.winner = "Computer is the winner!"
+            self.winner = "Computer is the winner (2nd player)!"
             return True
         if max_stacks == score_human + score_computer:
             self.winner = "No one winns! It is draw!"
@@ -95,9 +95,9 @@ class Game:
         direction_value = self.direction_combobox.get()
         
         if(self.check_inputs(from_value, index_value, direction_value)):
-            if self.move_figure(from_value, index_value, direction_value):#sad je dobro
+            if self.move_figure(from_value, index_value, direction_value):
                 self.change_current_player()
-                if len(self.find_all_possible_moves(self.current_color))==0:
+                if len(self.find_all_possible_moves(self.current_color,self.table.state))==0:
                     label="X"
                     if self.current_color==0:
                         label="O"
@@ -115,11 +115,12 @@ class Game:
             warning.mainloop()
             
     def move_figure(self, from_value, index_value, direction_value):
-        moved,i,j= self.table.move_figure(from_value, index_value, direction_value)
+        moved,i,j= self.table.move_figure(from_value, index_value, direction_value,self.table.state)
+        self.table.draw_state()
         
         if moved:
-            if self.table.is_stack_full(i,j):
-                if self.current_color==1:
+            if self.table.is_stack_full(i,j,self.table.state):
+                if self.table.state[i,j,7]==1:
                     self.player_1.increase_stack_score()
                 else:
                     self.player_2.increase_stack_score()
@@ -131,13 +132,14 @@ class Game:
                     
         return moved
     
-    def find_all_possible_moves(self,current_color):
+    
+    def find_all_possible_moves(self,current_color,state):
         possible_moves=[]
         for i in range(self.table_size):
             for j in range(self.table_size):
                 for k in range(8):
-                    if self.table.state[i,j,k]==current_color:
-                        possible_moves.extend(self.table.find_all_possible_moves_from_position(i,j,k))
+                    if state[i,j,k]==current_color:
+                        possible_moves.extend(self.table.find_all_possible_moves_from_position(i,j,k,state))
         return possible_moves
     
     def generate_all_possible_states(self, possible_moves, starting_state):
@@ -145,7 +147,8 @@ class Game:
         
         for move in possible_moves:
             state=np.copy(starting_state)
-            src_i,src_j,index_value, dest_i, dest_j, dst_index = self.table.calculate_indices(move[0]+str(move[1]+1), move[2], move[3])
+            src_i,src_j,index_value, dest_i, dest_j, dst_index = self.table.calculate_indices(
+                move[0]+str(move[1]+1), move[2], move[3])
             self.table.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),state)
             list_of_states.append(state)
             
@@ -202,6 +205,156 @@ class Game:
         
         return True
     
+    def calc_num_of_top_figures(self, state):
+        one_tops=0
+        zero_tops=0
+        for i in range(self.table_size):
+            for j in range(self.table_size):
+                count = np.count_nonzero(state[i, j, :] == -1)
+                if count < 8:
+                    if state[i,j,8-count-1]==1:
+                        one_tops+=1
+                    elif state[i,j,8-count-1]==0:
+                        zero_tops+=1
+        
+        if self.player_1.is_x:
+            return one_tops-zero_tops
+        return zero_tops-one_tops
+    
+    def calc_evaluation_of_possibilities(self, state):
+        one_score=0
+        zero_score=0
+        
+        for i in range(self.table_size):
+            for j in range(self.table_size):
+                empty_fields = np.count_nonzero(state[i, j, :] == -1)
+                if empty_fields!=0:
+                    for x in range(empty_fields):
+                        if i-1>=0 and j-1>=0:
+                            filled= np.count_nonzero(state[i-1, j-1, :] != -1)
+                            if filled!=0:
+                                if x<=filled:
+                                    if state[i-1,j-1,filled-1]==1 :
+                                        one_score+=x+1
+                                    else:
+                                        zero_score+=x+1
+                        if i-1>=0 and j+1<=self.table_size:
+                            filled= np.count_nonzero(state[i-1, j+1, :] != -1)
+                            if filled!=0:
+                                if x<=filled:
+                                    if state[i-1,j+1,filled-1]==1 :
+                                        one_score+=x+1
+                                    else:
+                                        zero_score+=x+1
+                        if i+1<=self.table_size and j-1>=0:
+                            filled= np.count_nonzero(state[i+1, j-1, :] != -1)
+                            if filled!=0:
+                                if x<=filled:
+                                    if state[i+1,j-1,filled-1]==1 :
+                                        one_score+=x+1
+                                    else:
+                                        zero_score+=x+1
+                        if i+1<=self.table_size and j+1<=self.table_size:
+                            filled= np.count_nonzero(state[i+1, j+1, :] != -1)
+                            if filled!=0:
+                                if x<=filled:
+                                    if state[i+1,j+1,filled-1]==1 :
+                                        one_score+=x+1
+                                    else:
+                                        zero_score+=x+1
+
+        if self.player_1.is_x:
+            return one_score-zero_score
+        return zero_score-one_score
+    
+    
+    def minmax_alpha_beta(self,state,depth,is_computer,alpha,beta):
+        if is_computer:
+            self.max_value(state,depth,alpha,beta)
+        else:
+            self.min_value(state,depth,alpha,beta)
+        
+    def calc_state_evaluation(self,state):
+        num_top_figures = self.calc_num_of_top_figures(state)
+        num_score_possibilities = self.calc_evaluation_of_possibilities(state)
+        
+        return num_top_figures+num_score_possibilities
+    
+    def end_game(self, state):
+        x=self.player_1.stack_score
+        y=self.player_2.stack_score
+        
+        for i in range(self.table_size):
+            for j in range(self.table_size):
+                 empty_fields = np.count_nonzero(state[i, j, :] == -1)
+                 if empty_fields==0:
+                     if state[i,j,7]==1 and self.player_1.is_x:
+                         x+=1
+                     elif  state[i,j,7]==1 and not self.player_1.is_x:
+                         y+=1
+                     elif state[i,j,7]==0 and self.player_1.is_x:
+                         y+=1
+                     else:
+                         x+=1
+                         
+        max_stacks=self.max_stacks()/2
+                         
+        if x>max_stacks:
+            return 10^6
+        if y>max_stacks:
+            return -10^6
+        
+        return 0
+                     
+                         
+    def min_value(self,state,depth,alpha,beta,move):
+        end=self.end_game(state)
+        if end:
+            return (move, end)
+        move_list=None
+        if self.player_1.is_x:
+            move_list=self.find_all_possible_moves(0,state)
+        else:
+            move_list=self.find_all_possible_moves(1,state)
+        
+        state_list=self.generate_all_possible_states(move_list,state)
+        
+        if depth==0 or len(move_list)==0:
+            return (move, self.calc_state_evaluation(state))
+
+        for s in move_list:
+            beta=min(beta, self.max_value(state,depth-1,alpha,beta,s))#state nije taj nego treba da se izracuna novi
+            if beta[1]<=alpha[1]:
+                return alpha
+        
+        return beta
+        
+        
+    def max_value(self,state,depth,alpha,beta,move):
+        end=self.end_game(state)
+        if end:
+            return (move, end)
+        move_list=None
+        if self.player_1.is_x:
+            move_list=self.find_all_possible_moves(0,state)
+        else:
+            move_list=self.find_all_possible_moves(1,state)
+        
+        state_list=self.generate_all_possible_states(move_list,state)
+        
+        if depth==0 or len(move_list)==0:
+            return (move, self.calc_state_evaluation(state))
+
+        for s in move_list:
+            alpha=max(alpha, self.min_value(state,depth-1,alpha,beta,s))#state nije taj nego treba da se izracuna novi
+            if beta[1]<=alpha[1]:
+                return beta
+        
+        return alpha
+        
+
+
+                       
 class GameTable:
     def __init__(self, master, table_size,field_size=50):
         self.master = master
@@ -285,26 +438,26 @@ class GameTable:
                 self.table.create_rectangle(x, y, x + self.field_size-10, y - figure_height, fill="white")
             y -= figure_height + 2
             
-    def check_empty_neighbors(self, index_i, index_j):
+    def check_empty_neighbors(self, index_i, index_j,state):
         empty_fields1= empty_fields2 =empty_fields3=empty_fields4= True
 
-        def is_occupied(i, j):
-            return self.state[i, j, 0] != -1
+        def is_occupied(i, j,state):
+            return state[i, j, 0] != -1
 
         if self.is_valid_position(index_i + 1, index_j + 1) :
-            if is_occupied(index_i + 1, index_j + 1):
+            if is_occupied(index_i + 1, index_j + 1,state):
                 empty_fields1 = False
        
         if self.is_valid_position(index_i + 1, index_j - 1):
-            if is_occupied(index_i + 1, index_j - 1):
+            if is_occupied(index_i + 1, index_j - 1,state):
                 empty_fields2 = False
             
         if self.is_valid_position(index_i - 1, index_j + 1):
-            if is_occupied(index_i - 1, index_j + 1):
+            if is_occupied(index_i - 1, index_j + 1,state):
                 empty_fields3 = False
         
         if self.is_valid_position(index_i - 1, index_j - 1):
-            if is_occupied(index_i - 1, index_j - 1):
+            if is_occupied(index_i - 1, index_j - 1,state):
                 empty_fields4 = False
             
         empty_fields = empty_fields1 and empty_fields2 and empty_fields3 and empty_fields4
@@ -315,7 +468,7 @@ class GameTable:
     def is_valid_position(self, i, j):
         return (0 <= i) and (i < self.table_size) and (0 <= j) and (j< self.table_size)
 
-    def find_nearest_stacks(self, start_position):
+    def find_nearest_stacks(self, start_position,state):
         visited = set()
         queue = deque([(start_position, 0)])
         min_distance = float('inf')
@@ -327,7 +480,7 @@ class GameTable:
             if distance > min_distance:
                 break  # Stop searching if we exceed the minimum distance
 
-            if self.state[x,y,0] != -1 and (x, y) != start_position:
+            if state[x,y,0] != -1 and (x, y) != start_position:
                 min_distance = distance
                 nearest_positions.append((x, y))
 
@@ -340,8 +493,8 @@ class GameTable:
 
         return nearest_positions
     
-    def is_on_path_to_closest_stack(self, current, next_move):
-        nearest_stacks=self.find_nearest_stacks(current)
+    def is_on_path_to_closest_stack(self, current, next_move,state):
+        nearest_stacks=self.find_nearest_stacks(current,state)
         on_path=False
         for stack in nearest_stacks:
             a,b=stack
@@ -363,10 +516,9 @@ class GameTable:
                     break
         return on_path
 
-    def is_stack_move_valid(self, source, destination):
-        
-        count_in_dest = np.count_nonzero(self.state[destination[0], destination[1], :] == -1)
-        count_in_source = np.count_nonzero(self.state[source[0], source[1], :] == -1)
+    def is_stack_move_valid(self, source, destination,state):
+        count_in_dest = np.count_nonzero(state[destination[0], destination[1], :] == -1)
+        count_in_source = np.count_nonzero(state[source[0], source[1], :] == -1)
         count_exchange=8-count_in_source-source[2]
 
         next_empty_in_stack = 8 - count_in_dest
@@ -378,7 +530,7 @@ class GameTable:
         
         return True
     
-    def calculate_indices(self, from_value, index_value, direction_value):
+    def calculate_indices(self, from_value, index_value, direction_value,state):
         dest_column=src_column=ord(from_value[-1])-65
         dest_row=src_row=int(from_value[:-1])-1
         if direction_value == "Upper-Left":
@@ -394,46 +546,50 @@ class GameTable:
             dest_row+=1
             dest_column+=1
         
-        dst_index = np.count_nonzero(self.state[dest_row, dest_column, :] == -1)
+        dst_index = np.count_nonzero(state[dest_row, dest_column, :] == -1)
         dst_index = 8 - dst_index
             
         return src_row, src_column,int(index_value), dest_row, dest_column, dst_index
     
-    def is_stack_full(self, row, column):
-        return np.count_nonzero(self.state[row, column, :] == -1) == 0
+    def is_stack_full(self, row, column,state):
+        return np.count_nonzero(state[row, column, :] == -1) == 0
         
     def execute_move(self, source, destination,table):
         count = 8-np.count_nonzero(table[source[0], source[1], :] == -1) - source[2]
-        table[destination[0], destination[1], destination[2]:destination[2]+count] = table[source[0], source[1], source[2]:source[2]+count] 
+        table[destination[0], destination[1], destination[2]:destination[2]+count] = table[
+            source[0], source[1], source[2]:source[2]+count] 
         table[source[0], source[1], source[2]:] = -1
 
-    def move_figure(self, from_value, index_value, direction_value):
-        src_i,src_j,index_value, dest_i, dest_j, dst_index = self.calculate_indices(from_value, index_value, direction_value)
+    def move_figure(self, from_value, index_value, direction_value,state):
+        src_i,src_j,index_value, dest_i, dest_j, dst_index = self.calculate_indices(
+            from_value, index_value, direction_value,state
+            )
         
-        empty_neighbors = self.check_empty_neighbors(src_i, src_j)
-        empty_destination = self.is_destination_empty((dest_i, dest_j))
-        if not empty_destination and not empty_neighbors and self.is_stack_move_valid((src_i,src_j,index_value), (dest_i, dest_j, dst_index)):
-            self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),self.state)
-            self.draw_state()
+        empty_neighbors = self.check_empty_neighbors(src_i, src_j,state)
+        empty_destination = self.is_destination_empty((dest_i, dest_j),state)
+        if not empty_destination and not empty_neighbors and self.is_stack_move_valid(
+            (src_i,src_j,index_value), (dest_i, dest_j, dst_index),state):
+            self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),state)
+            # self.draw_state()
             return True, dest_i, dest_j
         
-        if empty_neighbors and index_value==0:#mora ceo stek da se prebaci kad se pomera na prazno polje
+        if empty_neighbors and index_value==0:#whole stack needs to be moved to empty field
             if self.is_on_path_to_closest_stack((src_i,src_j), (dest_i, dest_j)):
-                self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),self.state)
-                self.draw_state()
+                self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),state)
+                # self.draw_state()
                 return True, dest_i, dest_j
         return False, -1, -1
     
-    def is_destination_empty(self, destination):
-        return np.count_nonzero(self.state[destination[0], destination[1], :] == -1) == 8 
+    def is_destination_empty(self, destination,state):
+        return np.count_nonzero(state[destination[0], destination[1], :] == -1) == 8 
       
     def draw_state(self):
         self.draw_table()
         self.draw_all_fields()
         
-    def find_all_possible_moves_from_position(self, i, j, k):
+    def find_all_possible_moves_from_position(self, i, j, k,state):
         moves=[]
-        if self.check_empty_neighbors(i, j):
+        if self.check_empty_neighbors(i, j,state):
             if k==0:
                 if self.is_valid_position(i-1, j-1):
                     if self.is_on_path_to_closest_stack((i,j), (i-1,j-1)):
@@ -448,16 +604,18 @@ class GameTable:
                     if self.is_on_path_to_closest_stack((i,j), (i+1,j+1)):
                         moves.append((i,j,k,"Lower-Right"))
         else:
-            if self.is_valid_position(i-1, j-1) and self.is_stack_move_valid((i,j,k), (i-1,j-1,0)) and not self.is_destination_empty((i-1,j-1)):
+            if self.is_valid_position(i-1, j-1) and self.is_stack_move_valid((i,j,k), (i-1,j-1,0),state) and not self.is_destination_empty((i-1,j-1),state):
                 moves.append((i,j,k,"Upper-Left"))
-            if self.is_valid_position(i-1, j+1) and self.is_stack_move_valid((i,j,k), (i-1,j+1,0)) and not self.is_destination_empty((i-1,j+1)):
+            if self.is_valid_position(i-1, j+1) and self.is_stack_move_valid((i,j,k), (i-1,j+1,0),state) and not self.is_destination_empty((i-1,j+1),state):
                 moves.append((i,j,k,"Upper-Right"))
-            if self.is_valid_position(i+1, j-1) and self.is_stack_move_valid((i,j,k), (i+1,j-1,0)) and not self.is_destination_empty((i+1,j-1)):
+            if self.is_valid_position(i+1, j-1) and self.is_stack_move_valid((i,j,k), (i+1,j-1,0),state) and not self.is_destination_empty((i+1,j-1),state):
                 moves.append((i,j,k,"Lower-Left"))
-            if self.is_valid_position(i+1, j+1) and self.is_stack_move_valid((i,j,k), (i+1,j+1,0)) and not self.is_destination_empty((i+1,j+1)):
+            if self.is_valid_position(i+1, j+1) and self.is_stack_move_valid((i,j,k), (i+1,j+1,0),state) and not self.is_destination_empty((i+1,j+1),state):
                 moves.append((i,j,k,"Lower-Right"))
                 
         return moves
+    
+
             
 class GamePropertiesForm:
     def __init__(self, master):
@@ -488,7 +646,8 @@ class GamePropertiesForm:
         self.labelPlayer.grid(row=3, column=2, sticky=tk.N+tk.S+tk.E+tk.W)
         
         self.direction_var = tk.StringVar()
-        self.choosen_player = ttk.Combobox(self.master, textvariable=self.direction_var, values=["Player X - black", "Player O - white"])
+        self.choosen_player = ttk.Combobox(
+            self.master, textvariable=self.direction_var, values=["Player X - black", "Player O - white"])
         self.choosen_player.grid(row=4, column=2, sticky=tk.N+tk.S+tk.E+tk.W) 
         self.choosen_player.config(state='readonly')
         
