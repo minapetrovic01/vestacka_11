@@ -2,29 +2,39 @@ import tkinter as tk
 from tkinter import Spinbox, Entry, Label, Button, ttk
 import numpy as np
 from collections import deque
+import time
+from queue import PriorityQueue
+
 
 
 class Game:
     def __init__(self, table_size, choosen_player,computer_player):
         self.table_size = table_size
         self.choosen_player = choosen_player
+        self.computer_player=computer_player
         
         if(choosen_player == "Player X - black"):
-            self.player_1 = Player(True, True)
-            self.player_2 = Player(False, not computer_player)
+            self.player_1 = Player(True, True)#human
+            self.player_2 = Player(False, not computer_player)#computer
         else:
-            self.player_2 = Player(True, not computer_player)
-            self.player_1 = Player(False, True)
+            self.player_2 = Player(True, not computer_player)#computer
+            self.player_1 = Player(False, True)#human
             
         self.winner = ""
+        
         self.current_color=1
         
         self.game_window = tk.Tk()
         self.table = GameTable(self.game_window, table_size)
         self.add_input_fields()
         self.current_score_display()
+        
+        if self.computer_player and self.player_2.is_x:
+            self.computers_turn()
 
         self.game_window.mainloop()
+        
+        #print("Game radi")
         
     def change_current_player(self):
         self.current_color=1-self.current_color
@@ -96,15 +106,22 @@ class Game:
         
         if(self.check_inputs(from_value, index_value, direction_value)):
             if self.move_figure(from_value, index_value, direction_value):
+                
                 self.change_current_player()
-                if len(self.find_all_possible_moves(self.current_color,self.table.state))==0:
+                if self.computer_player:
+                    self.computers_turn()
+                   
+                while len(self.find_all_possible_moves(self.current_color,self.table.state))==0:
                     label="X"
                     if self.current_color==0:
                         label="O"
                     result = tk.Tk()
-                    InfoForm(self.game_window,result, "No possible moves for player ",label ,".")
+                    InfoForm(self.game_window,result, "No possible moves for player "+label +".")
                     result.mainloop()
                     self.change_current_player()
+                    if self.computer_player:
+                        self.computers_turn()
+                      
             else:
                 warning = tk.Tk()
                 InfoForm(self.game_window,warning, "Unable to make a move! Try again.")
@@ -114,16 +131,40 @@ class Game:
             InfoForm(self.game_window,warning, "Wrong input!")
             warning.mainloop()
             
+    def computers_turn(self):
+        start_time = time.time()
+        best_move = None
+        depth = 1
+        time_limit = 1.5
+        self.move_button.config(state=tk.DISABLED)
+        
+        while time.time() - start_time < time_limit and depth < 10:
+            move, heuristic = self.minmax_alpha_beta(self.table.state, depth, True, (None, -10**6), (None, 10**6))
+            if move is not None:
+                best_move = move
+            depth += 1
+        print("Depth: ", depth)
+        print(best_move)
+        # move,heuristic=self.minmax_alpha_beta(self.table.state,3,True,(None,-10**6),(None,10**6))
+        # print(move,heuristic)
+        if(best_move!=None):
+            move=(str(best_move[0]+1)+chr(best_move[1]+65), str(best_move[2]), best_move[3])
+            self.move_figure(move[0],move[1],move[2])
+        self.change_current_player()
+        self.move_button.config(state=tk.NORMAL)
+
+            
     def move_figure(self, from_value, index_value, direction_value):
         moved,i,j= self.table.move_figure(from_value, index_value, direction_value,self.table.state)
         self.table.draw_state()
         
         if moved:
             if self.table.is_stack_full(i,j,self.table.state):
+                self.table.state[i,j,:]=-1
                 if self.table.state[i,j,7]==1:
-                    self.player_1.increase_stack_score()
+                    self.player_1.increase_stack_score() if self.player_1.is_x else self.player_2.increase_stack_score()#ovde treba x-u da se poveca score
                 else:
-                    self.player_2.increase_stack_score()
+                    self.player_2.increase_stack_score() if self.player_1.is_x else self.player_1.increase_stack_score()#ovde treba o-u da se poveca score
                 if self.is_finished():
                     result = tk.Tk()
                     InfoForm(self.game_window,result, self.winner)
@@ -133,22 +174,32 @@ class Game:
         return moved
     
     
-    def find_all_possible_moves(self,current_color,state):
+    
+    
+    def find_all_possible_moves(self,color,state):
         possible_moves=[]
         for i in range(self.table_size):
             for j in range(self.table_size):
                 for k in range(8):
-                    if state[i,j,k]==current_color:
+                    if state[i,j,k]==color:
                         possible_moves.extend(self.table.find_all_possible_moves_from_position(i,j,k,state))
+        # print(state)
+                        
+        # print("------------------------------",possible_moves,"-----------------------------------")
         return possible_moves
     
     def generate_all_possible_states(self, possible_moves, starting_state):
         list_of_states=[]
         
+        # print("******************************************")
         for move in possible_moves:
+            
             state=np.copy(starting_state)
+            
+            # print(str(move[0]+1)+chr(move[1]+65), str(move[2]), move[3])
             src_i,src_j,index_value, dest_i, dest_j, dst_index = self.table.calculate_indices(
-                move[0]+str(move[1]+1), move[2], move[3])
+                str(move[0]+1)+chr(move[1]+65), str(move[2]), move[3],state)
+            #print(src_i,src_j,index_value, dest_i, dest_j, dst_index)
             self.table.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),state)
             list_of_states.append(state)
             
@@ -217,7 +268,7 @@ class Game:
                     elif state[i,j,8-count-1]==0:
                         zero_tops+=1
         
-        if self.player_1.is_x:
+        if self.player_2.is_x:
             return one_tops-zero_tops
         return zero_tops-one_tops
     
@@ -238,7 +289,7 @@ class Game:
                                         one_score+=x+1
                                     else:
                                         zero_score+=x+1
-                        if i-1>=0 and j+1<=self.table_size:
+                        if i-1>=0 and j+1<self.table_size:
                             filled= np.count_nonzero(state[i-1, j+1, :] != -1)
                             if filled!=0:
                                 if x<=filled:
@@ -246,7 +297,7 @@ class Game:
                                         one_score+=x+1
                                     else:
                                         zero_score+=x+1
-                        if i+1<=self.table_size and j-1>=0:
+                        if i+1<self.table_size and j-1>=0:
                             filled= np.count_nonzero(state[i+1, j-1, :] != -1)
                             if filled!=0:
                                 if x<=filled:
@@ -254,7 +305,7 @@ class Game:
                                         one_score+=x+1
                                     else:
                                         zero_score+=x+1
-                        if i+1<=self.table_size and j+1<=self.table_size:
+                        if i+1<self.table_size and j+1<self.table_size:
                             filled= np.count_nonzero(state[i+1, j+1, :] != -1)
                             if filled!=0:
                                 if x<=filled:
@@ -263,20 +314,21 @@ class Game:
                                     else:
                                         zero_score+=x+1
 
-        if self.player_1.is_x:
+        if self.player_2.is_x:
             return one_score-zero_score
         return zero_score-one_score
     
     
     def minmax_alpha_beta(self,state,depth,is_computer,alpha,beta):
-        if is_computer:
-            self.max_value(state,depth,alpha,beta)
-        else:
-            self.min_value(state,depth,alpha,beta)
+        # if self.player_2.is_x:
+            return self.max_value(state,depth,alpha,beta,None)
+        # else:
+            # return self.min_value(state,depth,alpha,beta,None)
         
     def calc_state_evaluation(self,state):
         num_top_figures = self.calc_num_of_top_figures(state)
-        num_score_possibilities = self.calc_evaluation_of_possibilities(state)
+        # num_score_possibilities = self.calc_evaluation_of_possibilities(state)
+        num_score_possibilities = 0
         
         return num_top_figures+num_score_possibilities
     
@@ -300,30 +352,32 @@ class Game:
         max_stacks=self.max_stacks()/2
                          
         if x>max_stacks:
-            return 10^6
+            return 10**6
         if y>max_stacks:
-            return -10^6
+            return -10**6
         
         return 0
                      
                          
     def min_value(self,state,depth,alpha,beta,move):
         end=self.end_game(state)
-        if end:
+        if end!=0:
             return (move, end)
         move_list=None
-        if self.player_1.is_x:
-            move_list=self.find_all_possible_moves(0,state)
+        if self.player_2.is_x:
+            move_list=self.find_all_possible_moves(1,state)#ovde je mozda greska sta se salje
         else:
-            move_list=self.find_all_possible_moves(1,state)
+            move_list=self.find_all_possible_moves(0,state)
+            
         
         state_list=self.generate_all_possible_states(move_list,state)
+        
         
         if depth==0 or len(move_list)==0:
             return (move, self.calc_state_evaluation(state))
 
-        for s in move_list:
-            beta=min(beta, self.max_value(state,depth-1,alpha,beta,s))#state nije taj nego treba da se izracuna novi
+        for i,s in enumerate(move_list):
+            beta=self.min_state(beta, self.max_value(state_list[i],depth-1,alpha,beta,s if move is None else move))
             if beta[1]<=alpha[1]:
                 return alpha
         
@@ -335,23 +389,33 @@ class Game:
         if end:
             return (move, end)
         move_list=None
-        if self.player_1.is_x:
-            move_list=self.find_all_possible_moves(0,state)
-        else:
+        if self.player_2.is_x:#probleeeeem nije ovde ovo if!!!
             move_list=self.find_all_possible_moves(1,state)
-        
+        else:
+            move_list=self.find_all_possible_moves(0,state)
+            
         state_list=self.generate_all_possible_states(move_list,state)
+        #print(move_list)
         
         if depth==0 or len(move_list)==0:
             return (move, self.calc_state_evaluation(state))
 
-        for s in move_list:
-            alpha=max(alpha, self.min_value(state,depth-1,alpha,beta,s))#state nije taj nego treba da se izracuna novi
+        for i,s in enumerate(move_list):
+            alpha=self.max_state(alpha, self.min_value(state_list[i],depth-1,alpha,beta,s if move is None else move))
             if beta[1]<=alpha[1]:
                 return beta
         
         return alpha
-        
+    
+    def max_state(self, a,b):
+        if a[1]>= b[1]:
+            return a
+        return b
+    
+    def min_state(self, a,b):
+        if a[1]<= b[1]:
+            return a
+        return b
 
 
                        
@@ -493,27 +557,62 @@ class GameTable:
 
         return nearest_positions
     
-    def is_on_path_to_closest_stack(self, current, next_move,state):
-        nearest_stacks=self.find_nearest_stacks(current,state)
+    def heuristic(self,position, goal):
+        # A simple Manhattan distance heuristic for A*
+        return abs(position[0] - goal[0]) + abs(position[1] - goal[1])
+    
+    def find_nearest_stacks_a_star(self, start_position, state):
+        visited = set()
+        priority_queue = PriorityQueue()
+        priority_queue.put((0, start_position))
+        min_distance = float('inf')
+        nearest_positions = []
+
+        while not priority_queue.empty():
+            distance, (x, y) = priority_queue.get()
+
+            if distance > min_distance:
+                break  # Stop searching if we exceed the minimum distance
+
+            if state[x, y, 0] != -1 and (x, y) != start_position:
+                min_distance = distance
+                nearest_positions.append((x, y))
+
+            for i, j in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]:
+                new_x, new_y = x + i, y + j
+
+                if self.is_valid_position(new_x, new_y) and (new_x, new_y) not in visited:
+                    cost = distance + 1  # Cost is the current distance plus 1
+                    priority_queue.put((cost + self.heuristic((new_x, new_y), start_position), (new_x, new_y)))
+                    visited.add((new_x, new_y))
+
+        return nearest_positions
+    
+    def is_on_path_to_closest_stack(self, current, next_move,state):#ova ne valja nista funkcijaaa!!!!!!!!!!!!!!!!!!!!
+        # nearest_stacks=self.find_nearest_stacks(current,state)
+        nearest_stacks=self.find_nearest_stacks_a_star(current,state)
         on_path=False
         for stack in nearest_stacks:
             a,b=stack
             i,j=current
             x,y=next_move
-            if(abs(a-i)<abs(a-x)):
-                if(b>j and y==j+1):
+            # if(abs(a-i)<abs(a-x)):
+            if(abs(a-i)>abs(a-x)):
+                if(b>=j and y==j+1):
                     on_path=True
                     break
-                if(j>b and y==j-1):
+                if(j>=b and y==j-1):
                     on_path=True
                     break
-            if(abs(b-j)<abs(b-y)):
-                if(a>i and x==i+1):
+            # if(abs(b-j)<abs(b-y)):
+            if(abs(b-j)>abs(b-y)):
+                if(a>=i and x==i+1):
                     on_path=True
                     break
-                if(a<i and x==i-1):
+                if(a<=i and x==i-1):
                     on_path=True
                     break
+           
         return on_path
 
     def is_stack_move_valid(self, source, destination,state):
@@ -531,6 +630,8 @@ class GameTable:
         return True
     
     def calculate_indices(self, from_value, index_value, direction_value,state):
+        
+        # print(from_value, index_value, direction_value)
         dest_column=src_column=ord(from_value[-1])-65
         dest_row=src_row=int(from_value[:-1])-1
         if direction_value == "Upper-Left":
@@ -574,7 +675,7 @@ class GameTable:
             return True, dest_i, dest_j
         
         if empty_neighbors and index_value==0:#whole stack needs to be moved to empty field
-            if self.is_on_path_to_closest_stack((src_i,src_j), (dest_i, dest_j)):
+            if self.is_on_path_to_closest_stack((src_i,src_j), (dest_i, dest_j),state):
                 self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),state)
                 # self.draw_state()
                 return True, dest_i, dest_j
@@ -590,18 +691,19 @@ class GameTable:
     def find_all_possible_moves_from_position(self, i, j, k,state):
         moves=[]
         if self.check_empty_neighbors(i, j,state):
+            # print("empty neighbors",i,j,k)
             if k==0:
                 if self.is_valid_position(i-1, j-1):
-                    if self.is_on_path_to_closest_stack((i,j), (i-1,j-1)):
+                    if self.is_on_path_to_closest_stack((i,j), (i-1,j-1),state):
                         moves.append((i,j,k,"Upper-Left"))
                 if self.is_valid_position(i-1, j+1):
-                    if self.is_on_path_to_closest_stack((i,j), (i-1,j+1)):
+                    if self.is_on_path_to_closest_stack((i,j), (i-1,j+1),state):
                         moves.append((i,j,k,"Upper-Right"))
                 if self.is_valid_position(i+1, j-1):
-                    if self.is_on_path_to_closest_stack((i,j), (i+1,j-1)):
+                    if self.is_on_path_to_closest_stack((i,j), (i+1,j-1),state):
                         moves.append((i,j,k,"Lower-Left"))
                 if self.is_valid_position(i+1, j+1):
-                    if self.is_on_path_to_closest_stack((i,j), (i+1,j+1)):
+                    if self.is_on_path_to_closest_stack((i,j), (i+1,j+1),state):
                         moves.append((i,j,k,"Lower-Right"))
         else:
             if self.is_valid_position(i-1, j-1) and self.is_stack_move_valid((i,j,k), (i-1,j-1,0),state) and not self.is_destination_empty((i-1,j-1),state):
