@@ -134,8 +134,8 @@ class Game:
     def computers_turn(self):
         start_time = time.time()
         best_move = None
-        depth = 1
-        time_limit = 1.5
+        depth = 3
+        time_limit = 2
         self.move_button.config(state=tk.DISABLED)
         
         while time.time() - start_time < time_limit and depth < 10:
@@ -143,10 +143,9 @@ class Game:
             if move is not None:
                 best_move = move
             depth += 1
+        print("Time: ", time.time() - start_time    )
         print("Depth: ", depth)
         print(best_move)
-        # move,heuristic=self.minmax_alpha_beta(self.table.state,3,True,(None,-10**6),(None,10**6))
-        # print(move,heuristic)
         if(best_move!=None):
             move=(str(best_move[0]+1)+chr(best_move[1]+65), str(best_move[2]), best_move[3])
             self.move_figure(move[0],move[1],move[2])
@@ -162,9 +161,15 @@ class Game:
             if self.table.is_stack_full(i,j,self.table.state):
                 self.table.state[i,j,:]=-1
                 if self.table.state[i,j,7]==1:
-                    self.player_1.increase_stack_score() if self.player_1.is_x else self.player_2.increase_stack_score()#ovde treba x-u da se poveca score
+                    if self.player_1.is_x:
+                        self.player_1.increase_stack_score()
+                    else:
+                        self.player_2.increase_stack_score()
                 else:
-                    self.player_2.increase_stack_score() if self.player_1.is_x else self.player_1.increase_stack_score()#ovde treba o-u da se poveca score
+                    if self.player_1.is_x:
+                        self.player_2.increase_stack_score()
+                    else:
+                        self.player_1.increase_stack_score()
                 if self.is_finished():
                     result = tk.Tk()
                     InfoForm(self.game_window,result, self.winner)
@@ -183,23 +188,18 @@ class Game:
                 for k in range(8):
                     if state[i,j,k]==color:
                         possible_moves.extend(self.table.find_all_possible_moves_from_position(i,j,k,state))
-        # print(state)
-                        
-        # print("------------------------------",possible_moves,"-----------------------------------")
+        print(possible_moves)
         return possible_moves
     
     def generate_all_possible_states(self, possible_moves, starting_state):
         list_of_states=[]
         
-        # print("******************************************")
         for move in possible_moves:
             
             state=np.copy(starting_state)
             
-            # print(str(move[0]+1)+chr(move[1]+65), str(move[2]), move[3])
             src_i,src_j,index_value, dest_i, dest_j, dst_index = self.table.calculate_indices(
                 str(move[0]+1)+chr(move[1]+65), str(move[2]), move[3],state)
-            #print(src_i,src_j,index_value, dest_i, dest_j, dst_index)
             self.table.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),state)
             list_of_states.append(state)
             
@@ -256,6 +256,14 @@ class Game:
         
         return True
     
+    def countin_stacks(self,state):
+        zero_stacks = np.sum(state[:, :, 7] == 0) * 100
+        one_stacks = np.sum(state[:, :, 7] == 1) * 100
+                        
+        if self.player_2.is_x:
+            return one_stacks-zero_stacks
+        return zero_stacks-one_stacks
+        
     def calc_num_of_top_figures(self, state):
         one_tops=0
         zero_tops=0
@@ -264,9 +272,9 @@ class Game:
                 count = np.count_nonzero(state[i, j, :] == -1)
                 if count < 8:
                     if state[i,j,8-count-1]==1:
-                        one_tops+=1
+                        one_tops+=8-count
                     elif state[i,j,8-count-1]==0:
-                        zero_tops+=1
+                        zero_tops+=8-count
         
         if self.player_2.is_x:
             return one_tops-zero_tops
@@ -279,75 +287,79 @@ class Game:
         for i in range(self.table_size):
             for j in range(self.table_size):
                 empty_fields = np.count_nonzero(state[i, j, :] == -1)
-                if empty_fields!=0:
+                if empty_fields!=0 and empty_fields!=8:
                     for x in range(empty_fields):
-                        if i-1>=0 and j-1>=0:
-                            filled= np.count_nonzero(state[i-1, j-1, :] != -1)
-                            if filled!=0:
-                                if x<=filled:
-                                    if state[i-1,j-1,filled-1]==1 :
-                                        one_score+=x+1
-                                    else:
-                                        zero_score+=x+1
-                        if i-1>=0 and j+1<self.table_size:
-                            filled= np.count_nonzero(state[i-1, j+1, :] != -1)
-                            if filled!=0:
-                                if x<=filled:
-                                    if state[i-1,j+1,filled-1]==1 :
-                                        one_score+=x+1
-                                    else:
-                                        zero_score+=x+1
-                        if i+1<self.table_size and j-1>=0:
-                            filled= np.count_nonzero(state[i+1, j-1, :] != -1)
-                            if filled!=0:
-                                if x<=filled:
-                                    if state[i+1,j-1,filled-1]==1 :
-                                        one_score+=x+1
-                                    else:
-                                        zero_score+=x+1
-                        if i+1<self.table_size and j+1<self.table_size:
-                            filled= np.count_nonzero(state[i+1, j+1, :] != -1)
-                            if filled!=0:
-                                if x<=filled:
-                                    if state[i+1,j+1,filled-1]==1 :
-                                        one_score+=x+1
-                                    else:
-                                        zero_score+=x+1
+                        neighbors=[(i-1,j-1),(i-1,j+1),(i+1,j-1),(i+1,j+1)]
+                        for ni,nj in neighbors:
+                            if self.table.is_valid_position(ni, nj):
+                                filled= np.count_nonzero(state[ni, nj, :] != -1)
+                                if filled!=0:
+                                    if x<=filled:
+                                        if state[ni,nj,filled-1]==1 :
+                                            one_score+=x+1
+                                        else:
+                                            zero_score+=x+1
 
         if self.player_2.is_x:
             return one_score-zero_score
         return zero_score-one_score
     
     
+    # def calc_evaluation_of_possibilities(self, state):
+    #     one_score = 0
+    #     zero_score = 0
+
+
+    #     for x in range(1, self.table_size):
+    #         # Diagonal neighbors
+    #         one_score += np.sum(np.diagonal(state, offset=-x) == 1) * x
+    #         zero_score += np.sum(np.diagonal(state, offset=-x) == 0) * x
+    #         one_score += np.sum(np.diagonal(np.flip(state, axis=1), offset=-x) == 1) * x
+    #         zero_score += np.sum(np.diagonal(np.flip(state, axis=1), offset=-x) == 0) * x
+
+    #         # Anti-diagonal neighbors
+    #         one_score += np.sum(np.diagonal(state, offset=x) == 1) * x
+    #         zero_score += np.sum(np.diagonal(state, offset=x) == 0) * x
+    #         one_score += np.sum(np.diagonal(np.flip(state, axis=1), offset=x) == 1) * x
+    #         zero_score += np.sum(np.diagonal(np.flip(state, axis=1), offset=x) == 0) * x
+
+    #     if self.player_2.is_x:
+    #         return one_score - zero_score
+    #     return zero_score - one_score
+    
+    
     def minmax_alpha_beta(self,state,depth,is_computer,alpha,beta):
-        # if self.player_2.is_x:
+        if is_computer:
             return self.max_value(state,depth,alpha,beta,None)
-        # else:
-            # return self.min_value(state,depth,alpha,beta,None)
+        else:
+            return self.min_value(state,depth,alpha,beta,None)
         
     def calc_state_evaluation(self,state):
         num_top_figures = self.calc_num_of_top_figures(state)
         # num_score_possibilities = self.calc_evaluation_of_possibilities(state)
-        num_score_possibilities = 0
+        stack_score=self.countin_stacks(state)
         
-        return num_top_figures+num_score_possibilities
+        return 0.4*num_top_figures+0.6*stack_score
     
     def end_game(self, state):
         x=self.player_1.stack_score
         y=self.player_2.stack_score
         
-        for i in range(self.table_size):
-            for j in range(self.table_size):
-                 empty_fields = np.count_nonzero(state[i, j, :] == -1)
-                 if empty_fields==0:
-                     if state[i,j,7]==1 and self.player_1.is_x:
-                         x+=1
-                     elif  state[i,j,7]==1 and not self.player_1.is_x:
-                         y+=1
-                     elif state[i,j,7]==0 and self.player_1.is_x:
-                         y+=1
-                     else:
-                         x+=1
+        # for i in range(self.table_size):
+        #     for j in range(self.table_size):
+        #          empty_fields = np.count_nonzero(state[i, j, :] == -1)
+        #          if empty_fields==0:
+        #              if state[i,j,7]==1 and self.player_1.is_x:
+        #                  x+=1
+        #              elif  state[i,j,7]==1 and not self.player_1.is_x:
+        #                  y+=1
+        #              elif state[i,j,7]==0 and self.player_1.is_x:
+        #                  y+=1
+        #              else:
+        #                  x+=1
+                         
+        x+=np.sum(state[:,:,7]==1) if self.player_1.is_x else np.sum(state[:,:,7]==0)
+        y+=np.sum(state[:,:,7]==0) if self.player_1.is_x else np.sum(state[:,:,7]==1)
                          
         max_stacks=self.max_stacks()/2
                          
@@ -597,21 +609,40 @@ class GameTable:
             i,j=current
             x,y=next_move
             # if(abs(a-i)<abs(a-x)):
-            if(abs(a-i)>abs(a-x)):
-                if(b>=j and y==j+1):
+            if a+b==i+j or a-b==i-j:
+                if abs(x-a)+abs(y-b)<=abs(i-a)+abs(j-b):
                     on_path=True
                     break
-                if(j>=b and y==j-1):
+            else:
+                if a==i and abs(b-y)<=abs(b-j):
                     on_path=True
                     break
-            # if(abs(b-j)<abs(b-y)):
-            if(abs(b-j)>abs(b-y)):
-                if(a>=i and x==i+1):
+                if b==j and abs(a-x)<=abs(a-i):
                     on_path=True
                     break
-                if(a<=i and x==i-1):
+                if b>=j and y==j+1:
                     on_path=True
                     break
+                if b<=j and y==j-1:
+                    on_path=True
+                    break
+                
+            
+            # if abs(a-i)>=abs(a-x):
+            #     if b>=j and y==j+1 and x>i:
+            #         on_path=True
+            #         break
+            #     if j>=b and y==j-1 and x<i:
+            #         on_path=True
+            #         break
+            # # if(abs(b-j)<abs(b-y)):
+            # if abs(b-j)>=abs(b-y):
+            #     if a>=i and x==i-1 and y>j:
+            #         on_path=True
+            #         break
+            #     if a<=i and x==i+1 and y<j:
+            #         on_path=True
+            #         break
            
         return on_path
 
