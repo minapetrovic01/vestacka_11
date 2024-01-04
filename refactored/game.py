@@ -111,15 +111,24 @@ class Game:
             
     def is_finished(self):
         max_stacks = self.max_stacks()
-        score_computer = self.player_1.stack_score 
-        score_human= self.player_2.stack_score
+        score_computer = self.player_2.stack_score 
+        score_human= self.player_1.stack_score
         
         if score_human > max_stacks/2:
-            self.winner = "You are the winner (1st player)!"
-            return True
+            if self.player_1.is_x:
+                self.winner = "X is the winner!"
+                return True
+            else:
+                self.winner = "O is the winner!"
+                return True
+
         if score_computer > max_stacks/2:
-            self.winner = "Computer is the winner (2nd player)!"
-            return True
+            if self.player_2.is_x:
+                self.winner = "X is the winner!"
+                return True
+            else:
+                self.winner = "O is the winner!"
+                return True
         if max_stacks == score_human + score_computer:
             self.winner = "No one winns! It is draw!"
             return True
