@@ -167,7 +167,6 @@ class GameTable:
         return empty_fields
     
     def is_on_path_to_closest_stack(self, current, next_move,state): 
-        # nearest_stacks=self.find_nearest_stacks(current,state)
         nearest_stacks=self.find_nearest_stacks_a_star(current,state)
         on_path=False
         for stack in nearest_stacks:
@@ -209,37 +208,30 @@ class GameTable:
                     break
 
 
-            #ostalo, gledaju se prostori koje odredjuju glavna i sporedna dijagonala koje prolaze kroz current
+            #ostalo, gledaju se prostori koje odredjuju glavna 
+            #i sporedna dijagonala koje prolaze kroz current
             sum_ij = i + j
             sum_ab = a + b
             if sum_ab > sum_ij:
-                #desno od sporedne
-                if b>a:
-                    #desni trougao
-                    if y==j+1:
+                if b>a: #desno od sporedne
+                    if y==j+1: #desni trougao
                         on_path=True
                         break
                 else:
-                    #donji trougao
-                    if x==i+1:
+                    if x==i+1: #donji trougao
                         on_path=True
                         break
 
             elif sum_ab < sum_ij:
-                #levo od sporedne
-                if b>a:
-                    #gornji trougao
-                    if x==i-1:
+                if b>a: #levo od sporedne
+                    if x==i-1: #gornji trougao
                         on_path=True
                         break
                 else:
-                    #levi trougao
-                    if y==j-1:
+                    if y==j-1: #levi trougao
                         on_path=True
                         break
 
-                
-            
         return on_path
 
     def find_nearest_stacks(self, start_position,state):
@@ -315,13 +307,11 @@ class GameTable:
         if not empty_destination and not empty_neighbors and self.is_stack_move_valid(
             (src_i,src_j,index_value), (dest_i, dest_j, dst_index),state):
             self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),state)
-            # self.draw_state()
             return True, dest_i, dest_j
         
-        if empty_neighbors and index_value==0:#whole stack needs to be moved to empty field
+        if empty_neighbors and index_value==0:#ceo stek treba da se prebaci na prazno polje
             if self.is_on_path_to_closest_stack((src_i,src_j), (dest_i, dest_j),state):
                 self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),state)
-                # self.draw_state()
                 return True, dest_i, dest_j
         return False, -1, -1
     

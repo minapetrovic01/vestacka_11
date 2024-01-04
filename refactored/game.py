@@ -38,6 +38,11 @@ class Game:
            
 
         
+    def check_possible_moves(self):
+        if len(self.find_all_possible_moves(self.current_color,self.table.state))==0:
+            return False
+        return True
+
     def input_move(self):
         from_value = self.from_entry.get()
         index_value = self.index_entry.get()
@@ -95,10 +100,7 @@ class Game:
             self.computers_turn()
         self.move_button.config(state=tk.NORMAL)   
 
-    def check_possible_moves(self):
-        if len(self.find_all_possible_moves(self.current_color,self.table.state))==0:
-            return False
-        return True
+
 
     def max_stacks(self):
         self.figure_number= (self.table_size*(self.table_size-2)) /2
@@ -338,19 +340,6 @@ class Game:
     def end_game(self, state):
         x=self.player_1.stack_score
         y=self.player_2.stack_score
-        
-        # for i in range(self.table_size):
-        #     for j in range(self.table_size):
-        #          empty_fields = np.count_nonzero(state[i, j, :] == -1)
-        #          if empty_fields==0:
-        #              if state[i,j,7]==1 and self.player_1.is_x:
-        #                  x+=1
-        #              elif  state[i,j,7]==1 and not self.player_1.is_x:
-        #                  y+=1
-        #              elif state[i,j,7]==0 and self.player_1.is_x:
-        #                  y+=1
-        #              else:
-        #                  x+=1
                          
         x+=np.sum(state[:,:,7]==1) if self.player_1.is_x else np.sum(state[:,:,7]==0)
         y+=np.sum(state[:,:,7]==0) if self.player_1.is_x else np.sum(state[:,:,7]==1)
