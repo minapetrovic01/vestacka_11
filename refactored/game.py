@@ -6,6 +6,7 @@ import time
 from player import Player
 from game_table import GameTable
 from info_form import InfoForm
+import random
 
 
 class Game:
@@ -34,6 +35,8 @@ class Game:
             self.computers_turn()
 
         self.game_window.mainloop()
+           
+
         
     def input_move(self):
         from_value = self.from_entry.get()
@@ -41,27 +44,22 @@ class Game:
         direction_value = self.direction_combobox.get()
         
         if(self.check_inputs(from_value, index_value, direction_value)):
-            if self.move_figure(from_value, index_value, direction_value):
-                
-                self.change_current_player()
-                if self.computer_player:
-                    self.computers_turn()
-                   
-                while len(self.find_all_possible_moves(self.current_color,self.table.state))==0:
-                    label="X"
-                    if self.current_color==0:
-                        label="O"
-                    result = tk.Tk()
-                    InfoForm(self.game_window,result, "No possible moves for player "+label +".")
-                    result.mainloop()
-                    self.change_current_player()
-                    if self.computer_player:
-                        self.computers_turn()
-                      
+            if self.check_possible_moves():
+                moved = self.move_figure(from_value, index_value, direction_value)
+                if not moved:
+                    warning = tk.Tk()
+                    InfoForm(self.game_window,warning, "Unable to make a move! Try again.")
+                    warning.mainloop()
             else:
+                label="X"
+                if self.current_color==0:
+                    label="O"
                 warning = tk.Tk()
-                InfoForm(self.game_window,warning, "Unable to make a move! Try again.")
+                InfoForm(self.game_window,warning, "No possible moves for player" + label + ".")
                 warning.mainloop()
+            self.change_current_player()
+            if self.computer_player:
+                self.computers_turn()
         else:
             warning = tk.Tk()
             InfoForm(self.game_window,warning, "Wrong input!")
@@ -85,24 +83,22 @@ class Game:
         print(best_move)
         if(best_move!=None):
             move=(str(best_move[0]+1)+chr(best_move[1]+65), str(best_move[2]), best_move[3])
-            self.move_figure(move[0],move[1],move[2])
+        else:
+            possible_moves=self.find_all_possible_moves(self.current_color,self.table.state)
+            next_move=random.choice(possible_moves)
+            move=(str(next_move[0]+1)+chr(next_move[1]+65), str(next_move[2]), next_move[3])
+
+        self.move_figure(move[0],move[1],move[2])
+        self.change_current_player()
+        if not self.check_possible_moves():
             self.change_current_player()
+            self.computers_turn()
         self.move_button.config(state=tk.NORMAL)   
 
-    def chekc_possible_moves(self):
+    def check_possible_moves(self):
         if len(self.find_all_possible_moves(self.current_color,self.table.state))==0:
-            label="X"
-            if self.current_color==0:
-                label="O"
-            result = tk.Tk()
-            InfoForm(self.game_window,result, "No possible moves for player "+ label +".")
-            result.mainloop()
-            self.change_current_player()
-            if self.computer_player:
-                self.computers_turn()
-            return True
-        else:
-            False
+            return False
+        return True
 
     def max_stacks(self):
         self.figure_number= (self.table_size*(self.table_size-2)) /2
@@ -258,7 +254,6 @@ class Game:
             return False
         return True
     
-
 
     def find_all_possible_moves(self,color,state):
         possible_moves=[]
