@@ -92,10 +92,6 @@ class GameTable:
         self.draw_table()
         self.draw_all_fields()
       
-
-
-
-       
     def calculate_indices(self, from_value, index_value, direction_value,state):
         dest_column=src_column=ord(from_value[-1])-65
         dest_row=src_row=int(from_value[:-1])-1

@@ -60,11 +60,21 @@ class Game:
                 if self.current_color==0:
                     label="O"
                 warning = tk.Tk()
-                InfoForm(self.game_window,warning, "No possible moves for player" + label + ".")
+                InfoForm(self.game_window,warning, "No possible moves for player " + label + ".")
                 warning.mainloop()
             self.change_current_player()
-            if self.computer_player:
-                self.computers_turn()
+            if self.check_possible_moves():
+                if self.computer_player:
+                    self.computers_turn()
+            else:
+                label="X"
+                if self.current_color==0:
+                    label="O"
+                warning = tk.Tk()
+                InfoForm(self.game_window,warning, "No possible moves for player " + label + ".")
+                warning.mainloop()
+                self.change_current_player()
+                
         else:
             warning = tk.Tk()
             InfoForm(self.game_window,warning, "Wrong input!")
@@ -197,9 +207,6 @@ class Game:
         self.move_button = Button(self.game_window, text="MAKE A MOVE", command=self.input_move)
         self.move_button.grid(row=4, column=self.table_size + 2, columnspan=3, sticky=tk.N+tk.E+tk.S+tk.W)
 
-
-    
-    
     def check_inputs(self, from_value, index_value, direction_value):
         if len(from_value) != 2 and len(from_value) != 3:
             return False
@@ -283,8 +290,13 @@ class Game:
 
 
     def countin_stacks(self,state):
-        zero_stacks = np.sum(state[:, :, 7] == 0) * 100
-        one_stacks = np.sum(state[:, :, 7] == 1) * 100
+        one_stacks=0
+        zero_stacks=0
+        zero_stacks = np.sum(state[:, :, 7] == 0) * 1000
+        one_stacks = np.sum(state[:, :, 7] == 1) * 1000
+        
+        if zero_stacks!=0 or one_stacks!=0:
+            print(zero_stacks,one_stacks)
                         
         if self.player_2.is_x:
             return one_stacks-zero_stacks
@@ -347,9 +359,9 @@ class Game:
         max_stacks=self.max_stacks()/2
                          
         if x>max_stacks:
-            return 10**6
+            return 10**4
         if y>max_stacks:
-            return -10**6
+            return -10**4
         
         return 0
 
