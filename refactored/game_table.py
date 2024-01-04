@@ -34,7 +34,6 @@ class GameTable:
                     bele -= 1
                        
     def draw_table(self):
-        # Dodaje labele sa indeksima polja sa leve i gornje strane
         for i in range(self.table_size):
             label = tk.Label(self.master, text=str(i + 1))
             label.grid(row=i + 1, column=0, sticky=tk.W)
@@ -45,7 +44,6 @@ class GameTable:
         self.table = tk.Canvas(self.master, width=self.table_size * self.field_size, height=self.table_size * self.field_size)
         self.table.grid(row=1, column=1, rowspan=self.table_size, columnspan=self.table_size, sticky=tk.N+tk.S+tk.E+tk.W)
         
-        # Crta tamna i svetla polja
         for i in range(self.table_size):
             for j in range(self.table_size):
                 if (i + j) % 2 == 0:
@@ -240,7 +238,7 @@ class GameTable:
             (x, y), distance = queue.popleft()
 
             if distance > min_distance:
-                break  # Stop searching if we exceed the minimum distance
+                break
 
             if state[x,y,0] != -1 and (x, y) != start_position:
                 min_distance = distance
@@ -277,16 +275,14 @@ class GameTable:
 
                 if self.is_valid_position(new_x, new_y) and (new_x, new_y) not in visited:
                     cost = distance + 1 
-                    priority_queue.put((cost + self.heuristic((new_x, new_y), start_position), (new_x, new_y)))
+                    priority_queue.put((cost + self.heuristic_astar((new_x, new_y), start_position), (new_x, new_y)))
                     visited.add((new_x, new_y))
 
         return nearest_positions
-    def heuristic(self,position, goal):
-        # Manhattan distance heuristic for A*
+    
+    def heuristic_astar(self,position, goal):
         return abs(position[0] - goal[0]) + abs(position[1] - goal[1])
     
-
-
     def execute_move(self, source, destination,table):
         count = 8-np.count_nonzero(table[source[0], source[1], :] == -1) - source[2]
         table[destination[0], destination[1], destination[2]:destination[2]+count] = table[
@@ -305,14 +301,12 @@ class GameTable:
             self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),state)
             return True, dest_i, dest_j
         
-        if empty_neighbors and index_value==0:#ceo stek treba da se prebaci na prazno polje
+        if empty_neighbors and index_value==0:
             if self.is_on_path_to_closest_stack((src_i,src_j), (dest_i, dest_j),state):
                 self.execute_move((src_i,src_j,index_value), (dest_i, dest_j, dst_index),state)
                 return True, dest_i, dest_j
         return False, -1, -1
     
-
-  
     def find_all_possible_moves_from_position(self, i, j, k,state):
         moves=[]
         if self.check_empty_neighbors(i, j,state):

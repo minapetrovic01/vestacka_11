@@ -88,29 +88,34 @@ class Game:
         time_limit = 2
         self.move_button.config(state=tk.DISABLED)
         
-        while time.time() - start_time < time_limit and depth < 10:
+        if  self.table_size>10:
+            depth=1
+            time_limit=0.5
             move, heuristic = self.minmax_alpha_beta(self.table.state, depth, True, (None, -10**6), (None, 10**6))
-            if move is not None:
-                best_move = move
-            depth += 1
+        else:
+            while time.time() - start_time < time_limit and depth < 10:
+                move, heuristic = self.minmax_alpha_beta(self.table.state, depth, True, (None, -10**6), (None, 10**6))
+                if move is not None:
+                    best_move = move
+                depth += 1
         print("Time: ", time.time() - start_time)
         print("Depth: ", depth)
         print(best_move)
         if(best_move!=None):
             move=(str(best_move[0]+1)+chr(best_move[1]+65), str(best_move[2]), best_move[3])
+            self.move_figure(move[0],move[1],move[2])
         else:
             possible_moves=self.find_all_possible_moves(self.current_color,self.table.state)
-            next_move=random.choice(possible_moves)
-            move=(str(next_move[0]+1)+chr(next_move[1]+65), str(next_move[2]), next_move[3])
+            if len(possible_moves)!=0:
+                next_move=random.choice(possible_moves)
+                move=(str(next_move[0]+1)+chr(next_move[1]+65), str(next_move[2]), next_move[3])
+                self.move_figure(move[0],move[1],move[2])
 
-        self.move_figure(move[0],move[1],move[2])
         self.change_current_player()
         if not self.check_possible_moves():
             self.change_current_player()
             self.computers_turn()
         self.move_button.config(state=tk.NORMAL)   
-
-
 
     def max_stacks(self):
         self.figure_number= (self.table_size*(self.table_size-2)) /2
@@ -169,9 +174,6 @@ class Game:
             self.current_score_display()
                     
         return moved
-    
-
-
 
     def current_score_display(self):
         x=self.player_1.stack_score if self.player_1.is_x else self.player_2.stack_score
@@ -262,7 +264,6 @@ class Game:
         if table_size<6 or table_size>16 or table_size%2==1:
             return False
         return True
-    
 
     def find_all_possible_moves(self,color,state):
         possible_moves=[]
@@ -286,8 +287,6 @@ class Game:
             list_of_states.append(state)
             
         return list_of_states
-    
-
 
     def countin_stacks(self,state):
         one_stacks=0
@@ -295,9 +294,6 @@ class Game:
         zero_stacks = np.sum(state[:, :, 7] == 0) * 1000
         one_stacks = np.sum(state[:, :, 7] == 1) * 1000
         
-        if zero_stacks!=0 or one_stacks!=0:
-            print(zero_stacks,one_stacks)
-                        
         if self.player_2.is_x:
             return one_stacks-zero_stacks
         return zero_stacks-one_stacks
@@ -365,8 +361,6 @@ class Game:
         
         return 0
 
-
-
     def minmax_alpha_beta(self,state,depth,is_computer,alpha,beta):
         if is_computer:
             return self.max_value(state,depth,alpha,beta,None)
@@ -382,10 +376,8 @@ class Game:
             move_list=self.find_all_possible_moves(1,state)
         else:
             move_list=self.find_all_possible_moves(0,state)
-            
         
         state_list=self.generate_all_possible_states(move_list,state)
-        
         
         if depth==0 or len(move_list)==0:
             return (move, self.calc_state_evaluation(state))

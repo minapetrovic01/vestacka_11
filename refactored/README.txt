@@ -1,0 +1,1 @@
+igra se pokreće u ovom folderu sa python byte_game.py
